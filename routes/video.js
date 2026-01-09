@@ -7,12 +7,10 @@ const router = express.Router();
 
 const UPLOAD_DIR = path.join(__dirname, "..", "uploads");
 
-// ensure uploads folder exists
 if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR);
 }
 
-// multer config
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOAD_DIR);
@@ -33,21 +31,15 @@ const upload = multer({
   }
 });
 
-// ✅ UPLOAD VIDEO
 router.post("/upload", upload.single("video"), (req, res) => {
   if (!req.file) {
     return res.status(400).json({
       error: "No file received or invalid file type (MP4 only)"
     });
   }
-
-  res.json({
-    filename: req.file.filename
-  });
+  res.json({ filename: req.file.filename });
 });
 
-
-// ✅ STREAM VIDEO
 router.get("/:filename", (req, res) => {
   const filePath = path.join(UPLOAD_DIR, req.params.filename);
 
@@ -71,7 +63,6 @@ router.get("/:filename", (req, res) => {
   const parts = range.replace(/bytes=/, "").split("-");
   const start = Number(parts[0]);
   const end = parts[1] ? Number(parts[1]) : fileSize - 1;
-
   const chunkSize = end - start + 1;
 
   res.writeHead(206, {
@@ -84,7 +75,5 @@ router.get("/:filename", (req, res) => {
 
   fs.createReadStream(filePath, { start, end }).pipe(res);
 });
-
-
 
 module.exports = router;
