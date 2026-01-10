@@ -12,7 +12,7 @@ const videoRoutes = videoModule.default || videoModule;
 const app = express();
 
 app.use(cors({
-  origin: 'https://djihane-chienese-dz.netlify.app//', // replace with your Netlify URL
+  origin: 'https://djihane-chinese.netlify.app', // replace with your Netlify URL
   methods: ['GET','POST','PUT','DELETE']
 }));
 
