@@ -1,79 +1,55 @@
 const express = require("express");
 const multer = require("multer");
-const path = require("path");
+const cloudinary = require("cloudinary").v2;
 const fs = require("fs");
 
 const router = express.Router();
 
-const UPLOAD_DIR = path.join(__dirname, "..", "uploads");
-
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR);
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, UPLOAD_DIR);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = Date.now() + "-" + file.originalname;
-    cb(null, uniqueName);
-  }
+// ========================
+// Configure Cloudinary
+// ========================
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.CLOUD_API_KEY,
+  api_secret: process.env.CLOUD_API_SECRET
 });
 
-const upload = multer({
-  storage,
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype !== "video/mp4") {
-      return cb(new Error("Only MP4 allowed"));
-    }
-    cb(null, true);
-  }
-});
+// ========================
+// Multer setup (temporary storage)
+// ========================
+const upload = multer({ dest: "tmp/" }); // store files temporarily before Cloudinary
 
-router.post("/upload", upload.single("video"), (req, res) => {
+// ========================
+// Upload video route
+// ========================
+router.post("/upload", upload.single("video"), async (req, res) => {
   if (!req.file) {
-    return res.status(400).json({
-      error: "No file received or invalid file type (MP4 only)"
-    });
+    return res.status(400).json({ error: "No file received or invalid file type" });
   }
-  res.json({ filename: req.file.filename });
+
+  try {
+    // Upload video to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      resource_type: "video"
+    });
+
+    // Delete the temporary file
+    fs.unlinkSync(req.file.path);
+
+    // Return the Cloudinary URL
+    res.json({ url: result.secure_url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-router.get("/:filename", (req, res) => {
-  const filePath = path.join(UPLOAD_DIR, req.params.filename);
-
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).end();
-  }
-
-  const stat = fs.statSync(filePath);
-  const fileSize = stat.size;
-  const range = req.headers.range;
-
-  if (!range) {
-    res.writeHead(200, {
-      "Content-Length": fileSize,
-      "Content-Type": "video/mp4",
-    });
-    fs.createReadStream(filePath).pipe(res);
-    return;
-  }
-
-  const parts = range.replace(/bytes=/, "").split("-");
-  const start = Number(parts[0]);
-  const end = parts[1] ? Number(parts[1]) : fileSize - 1;
-  const chunkSize = end - start + 1;
-
-  res.writeHead(206, {
-    "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-    "Accept-Ranges": "bytes",
-    "Content-Length": chunkSize,
-    "Content-Type": "video/mp4",
-    "Cache-Control": "no-cache",
-  });
-
-  fs.createReadStream(filePath, { start, end }).pipe(res);
+// ========================
+// Optional: List videos route
+// ========================
+// If you store video URLs in your database, return them here
+router.get("/", async (req, res) => {
+  // Example placeholder
+  res.json({ message: "Fetch video URLs from your database" });
 });
 
 module.exports = router;
